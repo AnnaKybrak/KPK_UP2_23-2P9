@@ -1,67 +1,76 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from models import Discipline, db
+from pydantic import BaseModel, Field
+from typing import Optional
+from models import Discipline
+import uvicorn
 
 app = FastAPI(title="Discipline Service")
 
-# Схемы для валидации данных (API)
+
 class DisciplineCreate(BaseModel):
-    name: str
+    name: str = Field(..., max_length=255)
     code: str
+    is_active: Optional[bool] = True
+
 
 class DisciplineUpdate(BaseModel):
-    name: str = None
-    code: str = None
-    is_active: bool = None
+    name: Optional[str] = Field(None, max_length=255)
+    code: Optional[str] = None
+    is_active: Optional[bool] = None
 
-# Подключение к БД при старте и закрытие при выключении
-@app.on_event("startup")
-def startup():
-    if db.is_closed():
-        db.connect()
 
-@app.on_event("shutdown")
-def shutdown():
-    if not db.is_closed():
-        db.close()
+@app.post("/disciplines/")
+def create_discipline(d: DisciplineCreate):
+    new_disc = Discipline.create(name=d.name, code=d.code, is_active=d.is_active)
+    return {"id": new_disc.id, "name": new_disc.name, "code": new_disc.code}
 
-@app.post("/disciplines")
-def create_discipline(discipline: DisciplineCreate):
-    try:
-        new_disc = Discipline.create(name=discipline.name, code=discipline.code)
-        return {"id": new_disc.id, "name": new_disc.name}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail="Дисциплина с таким именем или кодом уже существует")
 
 @app.put("/disciplines/{disc_id}")
-def update_discipline(disc_id: int, data: DisciplineUpdate):
-    try:
-        disc = Discipline.get_by_id(disc_id)
-        if data.name is not None:
-            disc.name = data.name
-        if data.code is not None:
-            disc.code = data.code
-        if data.is_active is not None:
-            disc.is_active = data.is_active
-        disc.save()
-        return {"id": disc.id, "status": "updated"}
-    except Discipline.DoesNotExist:
-        raise HTTPException(status_code=404, detail="Дисциплина не найдена")
+def update_discipline(disc_id: int, d: DisciplineUpdate):
+    disc = Discipline.get_or_none(Discipline.id == disc_id)
+    if not disc:
+        raise HTTPException(status_code=404, detail="Not found")
+    if d.name:
+        disc.name = d.name
+    if d.code:
+        disc.code = d.code
+    if d.is_active is not None:
+        disc.is_active = d.is_active
+    disc.save()
+    return {"id": disc.id, "status": "updated"}
+
 
 @app.delete("/disciplines/{disc_id}")
 def delete_discipline(disc_id: int):
-    try:
-        disc = Discipline.get_by_id(disc_id)
-        disc.is_active = False
-        disc.save()
-        return True
-    except Discipline.DoesNotExist:
+    disc = Discipline.get_or_none(Discipline.id == disc_id)
+    if not disc:
         return False
+    disc.is_active = False
+    disc.save()
+    return True
+
 
 @app.get("/disciplines/{disc_id}")
 def get_discipline(disc_id: int):
-    try:
-        disc = Discipline.get_by_id(disc_id)
-        return {"id": disc.id, "name": disc.name, "code": disc.code, "is_active": disc.is_active}
-    except Discipline.DoesNotExist:
-        raise HTTPException(status_code=404, detail="Дисциплина не найдена")
+    disc = Discipline.get_or_none(Discipline.id == disc_id)
+    if not disc:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {
+        "id": disc.id,
+        "name": disc.name,
+        "code": disc.code,
+        "is_active": disc.is_active,
+    }
+
+
+@app.get("/disciplines")
+def get_list(name: Optional[str] = None, is_active: Optional[bool] = None):
+    query = Discipline.select()
+    if name:
+        query = query.where(Discipline.name.contains(name))
+    if is_active is not None:
+        query = query.where(Discipline.is_active == is_active)
+    return [
+        {"id": d.id, "name": d.name, "code": d.code, "is_active": d.is_active}
+        for d in query
+    ]

@@ -8,9 +8,20 @@ class BaseModel(Model):
 
 class Discipline(BaseModel):
     """Модель справочника дисциплин"""
-    name = CharField(max_length=255, unique=True, null=False)
-    code = CharField(unique=True, null=False)
-    is_active = BooleanField(default=True, null=False)
+    id = PrimaryKeyField()
+    name = CharField(max_length=255) 
+    code = CharField(max_length=255) 
+    is_active = BooleanField(default=True)
+
+    class Meta:
+        indexes = (
+            (('name', 'code'), True),
+        )
+
+    def delete_instance(self, recursive=False, delete_nullable=False):
+        self.is_active = False
+        self.save()
+        return 1
 
 def init_db():
     """Инициализация базы данных и создание таблиц"""
