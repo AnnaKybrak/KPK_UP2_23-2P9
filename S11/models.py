@@ -18,10 +18,14 @@ class Discipline(BaseModel):
             (('name', 'code'), True),
         )
 
-    def delete_instance(self, recursive=False, delete_nullable=False):
-        self.is_active = False
-        self.save()
-        return 1
+    @classmethod
+    def close(cls, discipline_id):
+        discipline = cls.get_or_none(cls.id == discipline_id)
+        if discipline and discipline.is_active:
+            discipline.is_active = False
+            discipline.save()
+            return True
+        return False
 
 def init_db():
     """Инициализация базы данных и создание таблиц"""
