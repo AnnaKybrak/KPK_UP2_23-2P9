@@ -37,7 +37,7 @@
 | Параметр | Тип |
 | :--- | :--- |
 | id | Integer |
-| status | String |
+| status | String (значение: "updated") |
 
 ---
 
