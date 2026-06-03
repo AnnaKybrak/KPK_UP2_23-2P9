@@ -1,4 +1,1 @@
 peewee
-fastapi
-uvicorn
-requests
